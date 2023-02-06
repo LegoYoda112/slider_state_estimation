@@ -23,8 +23,8 @@ class SliderEnv(Env):
 
         self.cost_dict = {}
 
-        self.action_noise_scale = 0.00
-        self.action_offset_noise_scale = 0.00
+        self.action_noise_scale = 0.01
+        self.action_offset_noise_scale = 0.01
 
         self.purtrub_max = [50,50,50] # Newtons
         self.purtrub_prob = 0.00 # Probability per timestep
@@ -84,8 +84,8 @@ class SliderEnv(Env):
 
         # Reset desired reference velocity
         # x, y, theta
-        self.v_ref = (np.random.uniform(1.0, -1.0), np.random.uniform(1.0, -1.0), np.random.uniform(-0.0, 0.0))
-        # self.v_ref = (1.0, 0, 0)
+        # self.v_ref = (np.random.uniform(1.0, -1.0), np.random.uniform(1.0, -1.0), np.random.uniform(-0.0, 0.0))
+        self.v_ref = (0.5, 0, 0)
 
         # self.target_torso_height = 0.4
 
@@ -190,7 +190,7 @@ class SliderEnv(Env):
         self.data.ctrl[2] = action[1] * 0.8
         
         # Slide
-        self.data.ctrl[4] = action[2] * 0.2 + 0.1
+        self.data.ctrl[4] = action[2] * 0.05 + 0.1
 
         # Foot Roll Pitch
         self.data.ctrl[6] = action[3] * 0.5
@@ -202,7 +202,7 @@ class SliderEnv(Env):
         self.data.ctrl[12] = action[6] * 0.8
         
         # Slide
-        self.data.ctrl[14] = action[7] * 0.2 + 0.1
+        self.data.ctrl[14] = action[7] * 0.05 + 0.1
 
         # Foot Roll Pitch
         self.data.ctrl[16] = action[8] * 0.5

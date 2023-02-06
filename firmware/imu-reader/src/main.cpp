@@ -3,6 +3,7 @@
 
 #include <Adafruit_LSM6DSOX.h>
 
+
 // For SPI mode, we need a CS pin
 #define LSM_CS 10
 // For software-SPI mode we need SCK/MOSI/MISO pins
@@ -19,6 +20,109 @@ double pitch_offset = 0;
 double yaw_offset = 0;
 
 Adafruit_LSM6DSOX sox;
+
+struct Quaternion{
+  double w;
+  double x;
+  double y;
+  double z;
+};
+
+struct Vector{
+  double x;
+  double y;
+  double z;
+};
+
+struct Quaternion scale_quaternion(struct Quaternion quat, double factor){
+  struct Quaternion scaled;
+  scaled.w = quat.w * factor;
+  scaled.x = quat.x * factor;
+  scaled.y = quat.y * factor;
+  scaled.z = quat.z * factor;
+
+  return scaled;
+}
+
+struct Quaternion lerp_quaternion(struct Quaternion quat1, struct Quaternion quat2, double factor){
+  struct Quaternion result;
+  result.w = quat1.w * factor + quat2.w * (1 - factor);
+  result.x = quat1.x * factor + quat2.x * (1 - factor);
+  result.y = quat1.y * factor + quat2.y * (1 - factor);
+  result.z = quat1.z * factor + quat2.z * (1 - factor);
+
+  return result;
+}
+
+struct Quaternion invert_quaternion(struct Quaternion quat){
+  struct Quaternion inverse;
+  inverse.w = quat.w;
+  inverse.x = - quat.x;
+  inverse.y = - quat.y;
+  inverse.z =  - quat.z;
+
+  return inverse;
+}
+
+struct Quaternion multiply_quaternion(struct Quaternion quat1, struct Quaternion quat2){
+  struct Quaternion multiplied;
+  multiplied.w = quat1.w*quat2.w - quat1.x*quat2.x - quat1.y*quat2.y - quat1.z*quat2.z;
+  multiplied.x = quat1.w*quat2.x + quat1.x*quat2.w + quat1.y*quat2.z - quat1.z*quat2.y;
+  multiplied.y = quat1.w*quat2.y + quat1.y*quat2.w + quat1.z*quat2.x - quat1.x*quat2.z;
+  multiplied.z = quat1.w*quat2.z + quat1.z*quat2.w + quat1.x*quat2.y - quat1.y*quat2.x;
+
+  return multiplied;
+}
+
+struct Vector cross_vector(struct Vector v1, struct Vector v2){
+  struct Vector crossed;
+  crossed.x = v1.y * v2.z - v1.z * v2.y;
+  crossed.y = v1.z * v2.x - v1.x * v2.z;
+  crossed.z = v1.x * v2.y - v1.y * v2.x;
+  return crossed;
+}
+
+double dot_vector(struct Vector v1, struct Vector v2){
+  return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+}
+
+double norm_vector(struct Vector v){
+  return sqrt(pow(v.x, 2) +
+              pow(v.y, 2) +
+              pow(v.z, 2));
+}
+
+struct Quaternion sum_quaternion(struct Quaternion quat1, struct Quaternion quat2){
+  struct Quaternion summed;
+
+
+  summed.w = quat1.w + quat2.w;
+  summed.x = quat1.x + quat2.x;
+  summed.y = quat1.y + quat2.y;
+  summed.z = quat1.z + quat2.z;
+
+  return summed;
+}
+
+struct Quaternion normalize_quaternion(struct Quaternion quat){
+  double mag = sqrt(pow(quat.x, 2) +
+                    pow(quat.y, 2) +
+                    pow(quat.z, 2) +
+                    pow(quat.w, 2));
+                    
+  struct Quaternion normalized;
+
+  normalized.w = quat.w / mag;
+  normalized.x = quat.x / mag;
+  normalized.y = quat.y / mag;
+  normalized.z = quat.z / mag;
+
+  return normalized;
+} 
+struct Quaternion heading_estimate;
+struct Quaternion angular_velocity_estimate;
+struct Quaternion gravity_direction;
+
 void setup(void) {
   Serial.begin(115200);
   while (!Serial)
@@ -152,7 +256,7 @@ void setup(void) {
     break;
   }
 
-  int sample_count = 200;
+  int sample_count = 1;
   for(int i = 0; i < sample_count; i++){
     sensors_event_t accel;
     sensors_event_t gyro;
@@ -177,13 +281,22 @@ void setup(void) {
   Serial.print(yaw_offset);
   Serial.println(" ");
 
-  // roll_offset = 0;
-  // pitch_offset = 0;
-  // yaw_offset = 0;
+  roll_offset = 0.0;
+  pitch_offset = 0.0;
+  yaw_offset = 0.0;
+
+  // Init estimators
+  heading_estimate.w = 1.0;
+  heading_estimate.x = 0.0;
+  heading_estimate.y = 0.0;
+  heading_estimate.z = 0.0;
 }
 
+
+long start_millis;
 void loop() {
-  double dt_seconds = 0.01;
+  // long currentMillis = millis();
+  double dt_seconds = 0.016;
 
   //  /* Get a new normalized sensor event */
   sensors_event_t accel;
@@ -191,27 +304,91 @@ void loop() {
   sensors_event_t temp;
   sox.getEvent(&accel, &gyro, &temp);
 
-  double roll_acc = -atan2(accel.acceleration.x, accel.acceleration.z);
-  double pitch_acc = atan2(accel.acceleration.y, accel.acceleration.z);
+
+  struct Quaternion angular_velocity_local;
+  angular_velocity_local.w = 0;
+  angular_velocity_local.x = -gyro.gyro.x;
+  angular_velocity_local.y = -gyro.gyro.y;
+  angular_velocity_local.z = gyro.gyro.z;
+
+  // angular_velocity_local.w = 0;
+  // angular_velocity_local.x = 1.0;
+  // angular_velocity_local.y = 0;
+  // angular_velocity_local.z = 0;
+
+  struct Quaternion angular_velocity_global;
+  angular_velocity_global = multiply_quaternion( multiply_quaternion(heading_estimate, angular_velocity_local), invert_quaternion(heading_estimate));
+
+  struct Quaternion heading_dot;
+  heading_dot = scale_quaternion(multiply_quaternion(angular_velocity_local, heading_estimate), 0.5);
+
+  // Calculate gravity quaternion
+  struct Quaternion gravity_orientation;
+
+  struct Vector up;
+  up.x = 0;
+  up.y = 0;
+  up.z = 1;
+
+  struct Vector gravity_vector;
+  gravity_vector.x = accel.acceleration.x;
+  gravity_vector.y = accel.acceleration.y;
+  gravity_vector.z = accel.acceleration.z;
+
+  struct Vector v_cross = cross_vector(up, gravity_vector);
+
+  gravity_orientation.x = v_cross.x;
+  gravity_orientation.y = v_cross.y;
+  gravity_orientation.z = v_cross.z;
+  gravity_orientation.w = (norm_vector(up) * norm_vector(gravity_vector)) + dot_vector(up, gravity_vector);
+
+  gravity_orientation = normalize_quaternion(gravity_orientation);
+
+  // GYRO PREDICTION
+  heading_estimate = sum_quaternion(heading_estimate, scale_quaternion(heading_dot, dt_seconds));
+  heading_estimate = normalize_quaternion(heading_estimate);
+
+  // ACCELEROMETER CORRECTION
+  heading_estimate = lerp_quaternion(heading_estimate, gravity_orientation, 0.99);
+
+
+  // double roll_acc = -atan2(accel.acceleration.x, accel.acceleration.z);
+  // double pitch_acc = atan2(accel.acceleration.y, accel.acceleration.z);
 
   // Serial.print("roll_acc: ");
   // Serial.print(roll_acc);
   // Serial.print(" pitch_acc: ");
   // Serial.print(pitch_acc);
 
-  double filter_alpha = 0.02;
+  // double filter_alpha = 0.02;
 
-  roll = filter_alpha * roll_acc + (1 - filter_alpha) * (roll + (gyro.gyro.y - roll_offset) * dt_seconds);
-  pitch = filter_alpha * pitch_acc + (1 - filter_alpha) * (pitch + (gyro.gyro.x - pitch_offset) * dt_seconds);
-  yaw = (yaw + (gyro.gyro.z - yaw_offset) * dt_seconds);
+  // roll = filter_alpha * roll_acc + (1 - filter_alpha) * (roll + (gyro.gyro.y - roll_offset) * dt_seconds);
+  // pitch = filter_alpha * pitch_acc + (1 - filter_alpha) * (pitch + (gyro.gyro.x - pitch_offset) * dt_seconds);
+  // yaw = (yaw + (gyro.gyro.z - yaw_offset) * dt_seconds);
 
-  Serial.print("R");
-  Serial.print(String(roll, 4));
-  Serial.print("P");
-  Serial.print(String(pitch, 4));
-  Serial.print("Y");
-  Serial.print(String(yaw, 4));
+  // Serial.print("R");
+  // Serial.print(String(roll, 4));
+  // Serial.print("P");
+  // Serial.print(String(pitch, 4));
+  // Serial.print("Y");
+  // Serial.print(String(yaw, 4));
 
+  Serial.print(String(heading_estimate.w, 3));
+  Serial.print(" ");
+  Serial.print(String(heading_estimate.x, 3));
+  Serial.print(" ");
+  Serial.print(String(heading_estimate.y, 3));
+  Serial.print(" ");
+  Serial.print(String(heading_estimate.z, 3));
+
+  Serial.print(" ");
+  Serial.print(String(accel.acceleration.x, 3));
+  Serial.print(" ");
+  Serial.print(String(accel.acceleration.y, 3));
+  Serial.print(" ");
+  Serial.print(String(accel.acceleration.z, 3));
+
+  Serial.println();
   Serial.println();
   // Serial.print("\t\tTemperature ");
   // Serial.print(temp.temperature);
@@ -237,6 +414,7 @@ void loop() {
   // Serial.println();
 
   delay(10);
+  // delay(500);
 
   //  // serial plotter friendly format
 
@@ -253,4 +431,6 @@ void loop() {
   // Serial.print(","); Serial.print(gyro.gyro.z);
   // Serial.println();
   //  delayMicroseconds(10000);
+
+  // Serial.println(millis() - currentMillis);
 }

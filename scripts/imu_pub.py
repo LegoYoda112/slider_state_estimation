@@ -6,19 +6,11 @@ from rclpy.node import Node
 from geometry_msgs.msg import Quaternion
 from geometry_msgs.msg import PoseStamped
 
+from sensor_msgs.msg import Imu
+
 import serial
 import re
 import numpy as np
-
-# From https://math.stackexchange.com/questions/2975109/how-to-convert-euler-angles-to-quaternions-and-get-the-same-euler-angles-back-fr
-def euler_to_quaternion(r):
-    (roll, pitch, yaw) = (r[0], -r[1], r[2])
-    yaw = 0.0
-    qx = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
-    qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
-    qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
-    qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
-    return [qx, qy, qz, qw]
 
 class IMUPub(Node):
 
@@ -28,6 +20,7 @@ class IMUPub(Node):
         self.get_logger().info("Starting imu publisher")
 
         self.orientation_publisher = self.create_publisher(Quaternion, '/slider/sensors/imu/orientation', 10)
+        self.imu_publisher = self.create_publisher(Imu, '/slider/sensors/imu/imu', 10)
         self.pose_publisher = self.create_publisher(PoseStamped, '/slider/sensors/imu/pose', 10)
 
         self.ser = serial.Serial('/dev/ttyACM0',
@@ -47,25 +40,40 @@ class IMUPub(Node):
         while(rclpy.ok):
             # Read line and parse
             line = self.ser.readline()
-            # print(str(line))
-            rpy = np.array(re.findall(r"[-0-9.]+", str(line)), float)
+            # print(line)
+            try:
+                data = np.array(re.findall(r"[-0-9.]+", str(line)), float)
+            except ValueError:
+                self.get_logger().warn("IMU ValueError")
+                data = []
 
             # If we've got rpy data, convert to quaternion
-            if(len(rpy) == 3):
-
+            if(len(data) == 10):
                 quat_msg = Quaternion()
+                imu_msg = Imu()
 
-                quat = euler_to_quaternion(rpy)
-                print(quat)
+                w, x, y, z, gx, gy, gz, ax, ay, az = data
 
                 # Fill in quaternion message
-                quat_msg.x = quat[0]
-                quat_msg.y = quat[1]
-                quat_msg.z = quat[2]
-                quat_msg.w = quat[3]
+                quat_msg.w = w
+                quat_msg.x = x
+                quat_msg.y = y
+                quat_msg.z = z
 
-                # Publish message
-                self.orientation_publisher.publish(quat_msg)
+                # Set imu orientation
+                imu_msg.orientation = quat_msg
+                imu_msg.orientation_covariance[0] = -1 # TODO: fill in
+
+                # Set angular velocity and linear acceleration
+                imu_msg.angular_velocity.x = gx
+                imu_msg.angular_velocity.y = gy
+                imu_msg.angular_velocity.z = gz
+                imu_msg.angular_velocity_covariance[0] = -1 # TODO: fill in
+
+                imu_msg.linear_acceleration.x = ax
+                imu_msg.linear_acceleration.y = ay
+                imu_msg.linear_acceleration.z = az
+                imu_msg.linear_acceleration_covariance[0] = -1 # TODO: fill in
 
                 # Make pose message (for rviz)
                 pose_msg = PoseStamped()
@@ -74,6 +82,9 @@ class IMUPub(Node):
 
                 pose_msg.pose.orientation = quat_msg
 
+                # Publish messages
+                self.orientation_publisher.publish(quat_msg)
+                self.imu_publisher.publish(imu_msg)
                 self.pose_publisher.publish(pose_msg)
 
             rclpy.spin_once(self, timeout_sec = 0)

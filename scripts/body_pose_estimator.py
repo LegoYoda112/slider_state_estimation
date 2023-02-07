@@ -52,7 +52,7 @@ class BodyPoseEstimator(Node):
             '/slider/sensors/imu/orientation', 
             self.body_orientation_callback,
             10)
-        
+            
         self.joint_positions = np.zeros(10)
 
         self.meshcat = StartMeshcat()
@@ -71,7 +71,8 @@ class BodyPoseEstimator(Node):
         self.diagram = builder.Build()
         self.diagram_context = self.diagram.CreateDefaultContext()
 
-        self.previous_contact_frame = ''
+        self.previous_contact_frame = 'Left_Foot'
+        self.contact_point = [0,0,0]
 
         self.setup_drake_joints()
 
@@ -182,6 +183,9 @@ class BodyPoseEstimator(Node):
             self.current_contact_frame = "Right_Foot"
 
         if(self.current_contact_frame != self.previous_contact_frame and not initial):
+            prev_contact_offset = self.get_world_position_of_frame(self.previous_contact_frame, self.slider_aux) - base_frame_position
+            self.base_link_aux.set_position(self.plant_context, self.contact_point - prev_contact_offset)
+
             self.contact_point = self.get_world_position_of_frame(self.current_contact_frame, self.slider_aux)
         
         if(initial):
@@ -214,6 +218,7 @@ class BodyPoseEstimator(Node):
         quat = [body_orientation.w, body_orientation.x, body_orientation.y, body_orientation.z]
         
         # Update robot pose estimate
+        quat = quat / np.linalg.norm(quat)
         drake_quat = drake_Quaternion(quat)
         self.base_link_main.set_quaternion(self.plant_context, drake_quat)
         self.calculate_rel_robot_position(self.base_link_main.get_quaternion(self.plant_context), self.get_q_main())

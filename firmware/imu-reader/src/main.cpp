@@ -312,7 +312,7 @@ void loop() {
   angular_velocity_global = multiply_quaternion( multiply_quaternion(heading_estimate, angular_velocity_local), invert_quaternion(heading_estimate));
 
   struct Quaternion heading_dot;
-  heading_dot = scale_quaternion(multiply_quaternion(angular_velocity_local, heading_estimate), 0.5);
+  heading_dot = scale_quaternion(multiply_quaternion(angular_velocity_global, heading_estimate), 0.5);
 
   // Calculate gravity quaternion
   struct Quaternion gravity_orientation;
@@ -355,11 +355,11 @@ void loop() {
 
   // Send gyro
   Serial.print(" ");
-  Serial.print(String(accel.gyro.x, 3));
+  Serial.print(String(gyro.gyro.x, 3));
   Serial.print(" ");
-  Serial.print(String(accel.gyro.y, 3));
+  Serial.print(String(gyro.gyro.y, 3));
   Serial.print(" ");
-  Serial.print(String(accel.gyro.z, 3));
+  Serial.print(String(gyro.gyro.z, 3));
   
   // Send acceleration
   Serial.print(" ");

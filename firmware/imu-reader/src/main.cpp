@@ -3,7 +3,6 @@
 
 #include <Adafruit_LSM6DSOX.h>
 
-
 // For SPI mode, we need a CS pin
 #define LSM_CS 10
 // For software-SPI mode we need SCK/MOSI/MISO pins
@@ -292,7 +291,6 @@ void setup(void) {
   heading_estimate.z = 0.0;
 }
 
-
 long start_millis;
 void loop() {
   // long currentMillis = millis();
@@ -304,17 +302,11 @@ void loop() {
   sensors_event_t temp;
   sox.getEvent(&accel, &gyro, &temp);
 
-
   struct Quaternion angular_velocity_local;
   angular_velocity_local.w = 0;
   angular_velocity_local.x = -gyro.gyro.x;
   angular_velocity_local.y = -gyro.gyro.y;
   angular_velocity_local.z = gyro.gyro.z;
-
-  // angular_velocity_local.w = 0;
-  // angular_velocity_local.x = 1.0;
-  // angular_velocity_local.y = 0;
-  // angular_velocity_local.z = 0;
 
   struct Quaternion angular_velocity_global;
   angular_velocity_global = multiply_quaternion( multiply_quaternion(heading_estimate, angular_velocity_local), invert_quaternion(heading_estimate));
@@ -352,27 +344,7 @@ void loop() {
   heading_estimate = lerp_quaternion(heading_estimate, gravity_orientation, 0.99);
 
 
-  // double roll_acc = -atan2(accel.acceleration.x, accel.acceleration.z);
-  // double pitch_acc = atan2(accel.acceleration.y, accel.acceleration.z);
-
-  // Serial.print("roll_acc: ");
-  // Serial.print(roll_acc);
-  // Serial.print(" pitch_acc: ");
-  // Serial.print(pitch_acc);
-
-  // double filter_alpha = 0.02;
-
-  // roll = filter_alpha * roll_acc + (1 - filter_alpha) * (roll + (gyro.gyro.y - roll_offset) * dt_seconds);
-  // pitch = filter_alpha * pitch_acc + (1 - filter_alpha) * (pitch + (gyro.gyro.x - pitch_offset) * dt_seconds);
-  // yaw = (yaw + (gyro.gyro.z - yaw_offset) * dt_seconds);
-
-  // Serial.print("R");
-  // Serial.print(String(roll, 4));
-  // Serial.print("P");
-  // Serial.print(String(pitch, 4));
-  // Serial.print("Y");
-  // Serial.print(String(yaw, 4));
-
+  // Send heading referance
   Serial.print(String(heading_estimate.w, 3));
   Serial.print(" ");
   Serial.print(String(heading_estimate.x, 3));
@@ -381,6 +353,15 @@ void loop() {
   Serial.print(" ");
   Serial.print(String(heading_estimate.z, 3));
 
+  // Send gyro
+  Serial.print(" ");
+  Serial.print(String(accel.gyro.x, 3));
+  Serial.print(" ");
+  Serial.print(String(accel.gyro.y, 3));
+  Serial.print(" ");
+  Serial.print(String(accel.gyro.z, 3));
+  
+  // Send acceleration
   Serial.print(" ");
   Serial.print(String(accel.acceleration.x, 3));
   Serial.print(" ");
@@ -389,48 +370,8 @@ void loop() {
   Serial.print(String(accel.acceleration.z, 3));
 
   Serial.println();
-  Serial.println();
-  // Serial.print("\t\tTemperature ");
-  // Serial.print(temp.temperature);
-  // Serial.println(" deg C");
-
-  /* Display the results (acceleration is measured in m/s^2) */
-  // Serial.print("\t\tAccel X: ");
-  // Serial.print(accel.acceleration.x);
-  // Serial.print(" \tY: ");
-  // Serial.print(accel.acceleration.y);
-  // Serial.print(" \tZ: ");
-  // Serial.print(accel.acceleration.z);
-  // Serial.println(" m/s^2 ");
-
-  // /* Display the results (rotation is measured in rad/s) */
-  // Serial.print("\t\tGyro X: ");
-  // Serial.print(gyro.gyro.x);
-  // Serial.print(" \tY: ");
-  // Serial.print(gyro.gyro.y);
-  // Serial.print(" \tZ: ");
-  // Serial.print(gyro.gyro.z);
-  // Serial.println(" radians/s ");
-  // Serial.println();
 
   delay(10);
-  // delay(500);
-
-  //  // serial plotter friendly format
-
-  //  Serial.print(temp.temperature);
-  //  Serial.print(",");
-
-  //  Serial.print(accel.acceleration.x);
-  //  Serial.print(","); Serial.print(accel.acceleration.y);
-  //  Serial.print(","); Serial.print(accel.acceleration.z);
-  //  Serial.print(",");
-
-  // Serial.print(gyro.gyro.x);
-  // Serial.print(","); Serial.print(gyro.gyro.y);
-  // Serial.print(","); Serial.print(gyro.gyro.z);
-  // Serial.println();
-  //  delayMicroseconds(10000);
 
   // Serial.println(millis() - currentMillis);
 }

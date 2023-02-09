@@ -5,6 +5,7 @@ from rclpy.node import Node
 
 from geometry_msgs.msg import Quaternion
 from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Vector3Stamped
 from sensor_msgs.msg import JointState
 
 import numpy as np
@@ -40,6 +41,7 @@ class BodyPoseEstimator(Node):
         self.get_logger().info("Starting body pose estimator")
 
         self.pose_publisher = self.create_publisher(PoseStamped, '/slider/state_estimation/body_pose', 10)
+        self.vel_publisher = self.create_publisher(Vector3Stamped, '/slider/state_estimation/body_velocity', 10)
         
         self.motor_state_subscriber = self.create_subscription(
             JointState, 
@@ -52,7 +54,7 @@ class BodyPoseEstimator(Node):
             '/slider/sensors/imu/orientation', 
             self.body_orientation_callback,
             10)
-            
+
         self.joint_positions = np.zeros(10)
 
         self.meshcat = StartMeshcat()
@@ -73,6 +75,10 @@ class BodyPoseEstimator(Node):
 
         self.previous_contact_frame = 'Left_Foot'
         self.contact_point = [0,0,0]
+
+        self.velocity_estimate = [0, 0, 0]
+        self.previous_body_pos = [0, 0, 0]
+        self.previous_run_time = self.get_clock().now()
 
         self.setup_drake_joints()
 
@@ -221,9 +227,42 @@ class BodyPoseEstimator(Node):
         quat = quat / np.linalg.norm(quat)
         drake_quat = drake_Quaternion(quat)
         self.base_link_main.set_quaternion(self.plant_context, drake_quat)
-        self.calculate_rel_robot_position(self.base_link_main.get_quaternion(self.plant_context), self.get_q_main())
 
+        self.calculate_rel_robot_position(self.base_link_main.get_quaternion(self.plant_context), self.get_q_main())
         self.diagram.ForcedPublish(self.diagram_context)
+
+        body_pose_msg = PoseStamped()
+        body_pose_msg.header.stamp = self.get_clock().now().to_msg()
+        body_pose_msg.header.frame_id = "world"
+
+        body_pose_msg.pose.orientation = body_orientation
+
+        body_position = self.get_world_position_of_frame("base_link", self.slider_aux)
+        body_pose_msg.pose.position.x = body_position[0]
+        body_pose_msg.pose.position.y = body_position[1]
+        body_pose_msg.pose.position.z = body_position[2]
+
+        self.pose_publisher.publish(body_pose_msg)
+
+        ns_to_s = 1e9
+
+        time_dt = (self.get_clock().now() - self.previous_run_time).nanoseconds / ns_to_s
+        self.velocity_estimate = (body_position - self.previous_body_pos) / time_dt
+        self.previous_body_pos = body_position
+
+        self.previous_run_time = self.get_clock().now()
+
+        body_vel_msg = Vector3Stamped()
+        body_vel_msg.header.stamp = self.get_clock().now().to_msg()
+        body_vel_msg.header.frame_id = "world"
+
+        body_vel_msg.vector.x = self.velocity_estimate[0]
+        body_vel_msg.vector.y = self.velocity_estimate[1]
+        body_vel_msg.vector.z = self.velocity_estimate[2]
+
+        self.vel_publisher.publish(body_vel_msg)
+
+
 
 def main(args=None):
     rclpy.init(args=args)

@@ -363,9 +363,9 @@ void loop() {
   
   // Send acceleration
   Serial.print(" ");
-  Serial.print(String(accel.acceleration.x, 3));
+  Serial.print(String(-accel.acceleration.x, 3));
   Serial.print(" ");
-  Serial.print(String(accel.acceleration.y, 3));
+  Serial.print(String(-accel.acceleration.y, 3));
   Serial.print(" ");
   Serial.print(String(accel.acceleration.z, 3));
 

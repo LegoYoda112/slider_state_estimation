@@ -14,9 +14,9 @@ find_package(sensor_msgs REQUIRED)
 # Python build
 find_package(rclpy REQUIRED)
 
-
 install(DIRECTORY
     models
+    launch
     DESTINATION share/${PROJECT_NAME}
 )
 

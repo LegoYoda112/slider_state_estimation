@@ -6,7 +6,10 @@ from rclpy.node import Node
 from geometry_msgs.msg import Quaternion
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Vector3Stamped
+from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import JointState
+
+from tf2_ros import TransformBroadcaster
 
 import numpy as np
 import os
@@ -42,6 +45,7 @@ class BodyPoseEstimator(Node):
 
         self.pose_publisher = self.create_publisher(PoseStamped, '/slider/state_estimation/body_pose', 10)
         self.vel_publisher = self.create_publisher(Vector3Stamped, '/slider/state_estimation/body_velocity', 10)
+        self.tf_broadcaster = TransformBroadcaster(self)
         
         self.motor_state_subscriber = self.create_subscription(
             JointState, 
@@ -261,6 +265,32 @@ class BodyPoseEstimator(Node):
         body_vel_msg.vector.z = self.velocity_estimate[2]
 
         self.vel_publisher.publish(body_vel_msg)
+
+        # Send map -> odom transform
+        tf = TransformStamped()
+        tf.header.stamp = self.get_clock().now().to_msg()
+        tf.header.frame_id = 'map'
+        tf.child_frame_id = 'odom'
+
+        tf.transform.translation.x = body_position[0]
+        tf.transform.translation.y = body_position[1]
+        tf.transform.translation.z = 0.0
+
+        self.tf_broadcaster.sendTransform(tf)
+
+        # Send odom -> base_link transform
+        tf = TransformStamped()
+        tf.header.stamp = self.get_clock().now().to_msg()
+        tf.header.frame_id = 'odom'
+        tf.child_frame_id = 'base_link'
+
+        tf.transform.translation.x = 0.0
+        tf.transform.translation.y = 0.0
+        tf.transform.translation.z = body_position[2]
+
+        tf.transform.rotation = body_orientation
+
+        self.tf_broadcaster.sendTransform(tf)
 
 
 

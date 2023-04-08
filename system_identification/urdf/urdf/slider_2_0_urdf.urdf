@@ -40,7 +40,7 @@
           rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
       </material>
     </visual>
-    <collision>
+    <!-- <collision>
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
@@ -49,7 +49,7 @@
           filename="../meshes/col/base_link.obj" />
       </geometry>
       <self_collide>false</self_collide>
-    </collision>
+    </collision> -->
   </link>
   <link
     name="Right_Pitch_casing">
@@ -312,7 +312,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../meshes/Right_Foot.obj" />
+          filename="../meshes/2022_Foot.obj" />
       </geometry>
       <material
         name="">
@@ -322,11 +322,12 @@
     </visual>
     <collision>
       <origin
-        xyz="0 0 0"
+        xyz="0 0 0.0"
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../meshes/col/Right_Foot.obj" />
+          filename="../meshes/col/Left_Foot.obj" />
+          <!-- <box size = "0.224 0.164 0.0701"/> -->
       </geometry>
     </collision>
   </link>
@@ -602,7 +603,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../meshes/Left_Foot.obj" />
+          filename="../meshes/2022_Foot.obj" />
       </geometry>
       <material
         name="">
@@ -612,12 +613,15 @@
     </visual>
     <collision>
       <origin
-        xyz="0 0 0"
+        xyz="0 0 0.0"
         rpy="0 0 0" />
       <geometry>
         <mesh
           filename="../meshes/col/Left_Foot.obj" />
+          <!-- <box size = "0.224 0.164 0.0701"/> -->
       </geometry>
+
+      <contact_coefficients mu = "1.0"/>
     </collision>
   </link>
   <joint
